@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart Trash Bin — DLCO Prototype</title>
+  <style>
+    :root{font-family:Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111}
+    body{margin:0;background:linear-gradient(180deg,#f6fbff,#eef6ff);min-height:100vh;display:flex;align-items:center;justify-content:center}
+    .card{width:920px;background:white;border-radius:12px;box-shadow:0 8px 30px rgba(20,30,60,0.09);padding:22px}
+    h1{margin:0 0 6px;font-size:20px}
+    p.lead{margin:0 0 18px;color:#4b5563}
+    .layout{display:grid;grid-template-columns:320px 1fr;gap:18px}
+    .panel{background:#fbfdff;border:1px solid #eef5ff;padding:12px;border-radius:10px}
+    .sensors .row{display:flex;align-items:center;justify-content:space-between;padding:8px 6px}
+    .switch{display:flex;gap:10px;align-items:center}
+    .toggle{position:relative;width:52px;height:28px;background:#dbeafe;border-radius:999px;padding:3px;cursor:pointer}
+    .knob{width:22px;height:22px;background:white;border-radius:50%;box-shadow:0 1px 4px rgba(2,6,23,0.2);transform:translateX(0);transition:transform .18s}
+    .toggle.on{background:#7dd3fc}
+    .toggle.on .knob{transform:translateX(24px)}
+    .leds{display:flex;gap:12px;align-items:center}
+    .led{width:26px;height:26px;border-radius:50%;background:#e6eefc;box-shadow:inset 0 -2px 6px rgba(0,0,0,0.06)}
+    .led.on.green{background: #16a34a;box-shadow:0 0 10px rgba(22,163,74,0.45)}
+    .led.on.yellow{background:#f59e0b;box-shadow:0 0 10px rgba(245,158,11,0.35)}
+    .led.on.red{background:#dc2626;box-shadow:0 0 12px rgba(220,38,38,0.35)}
+    .display{display:flex;gap:14px;align-items:center}
+    .binarystack{background:#0f172a;color:#fff;padding:10px;border-radius:8px;min-width:120px;text-align:center}
+    .binarystack .bits{font-family:monospace;font-size:20px;letter-spacing:6px}
+    .status{font-weight:600}
+    .controls{display:flex;gap:8px;align-items:center;margin-top:12px}
+    button{background:#0ea5e9;border:none;padding:8px 12px;border-radius:8px;color:white;font-weight:600;cursor:pointer}
+    button.secondary{background:#94a3b8}
+    .sevenseg{width:140px;height:60px;background:black;border-radius:8px;padding:12px;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(2,1fr);gap:6px}
+    .seg{background:#081126;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#9aaed6;font-weight:700}
+    .info{font-size:13px;color:#334155}
+    .footer{margin-top:12px;font-size:13px;color:#475569}
+    .chip{display:inline-block;background:#eef2ff;padding:6px 8px;border-radius:999px;font-weight:600;color:#1e293b}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Smart Trash Bin </h1>
+    <p class="lead">Simulates 3 sensors (bottom→top). Uses simple combinational logic and a tiny sequential memory (stores last state). Toggle sensors and click <span class="chip">Apply</span>.</p>
+
+    <div class="layout">
+      <div class="panel sensors">
+        <div class="row"><strong>Sensors (bottom → top)</strong><span class="info">Each sensor outputs 1 when waste reaches that height</span></div>
+        <div class="row">
+          <div class="switch"><label>Level 1 (bottom)</label><div id="t1" class="toggle" data-val="0"><div class="knob"></div></div></div>
+          <div class="leds"><div id="led1" class="led"></div></div>
+        </div>
+        <div class="row">
+          <div class="switch"><label>Level 2 (mid)</label><div id="t2" class="toggle" data-val="0"><div class="knob"></div></div></div>
+          <div class="leds"><div id="led2" class="led"></div></div>
+        </div>
+        <div class="row">
+          <div class="switch"><label>Level 3 (top)</label><div id="t3" class="toggle" data-val="0"><div class="knob"></div></div></div>
+          <div class="leds"><div id="led3" class="led"></div></div>
+        </div>
+
+        <div class="controls">
+          <button id="apply">Apply Sensors</button>
+          <button id="clear" class="secondary">Clear Memory</button>
+          <button id="preset" class="secondary">Random Fill</button>
+        </div>
+
+        <div class="footer">Sequential memory: last computed state is stored (simulates flip-flops). Reload page preserves it.</div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div class="display">
+            <div class="binarystack">
+              <div style="font-size:12px;opacity:.8">Binary (top→bottom)</div>
+              <div id="bits" class="bits">000</div>
+            </div>
+
+            <div style="min-width:220px">
+              <div style="font-size:13px;color:#64748b">Decoded Status</div>
+              <div id="status" class="status">Empty</div>
+              <div id="statusDetail" class="info">No waste detected.</div>
+            </div>
+          </div>
+
+          <div style="text-align:right">
+            <div style="font-size:12px;color:#94a3b8">Level LEDs</div>
+            <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end">
+              <div style="text-align:center"><div id="v1" class="led"></div><div style="font-size:12px;margin-top:6px">L1</div></div>
+              <div style="text-align:center"><div id="v2" class="led"></div><div style="font-size:12px;margin-top:6px">L2</div></div>
+              <div style="text-align:center"><div id="v3" class="led"></div><div style="font-size:12px;margin-top:6px">L3</div></div>
+            </div>
+          </div>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef2ff" />
+
+        <div style="display:flex;gap:12px;align-items:center">
+          <div>
+            <div style="font-size:12px;color:#94a3b8">7-segment style (encoded)</div>
+            <div class="sevenseg" id="seven">
+              <div id="s1" class="seg">0</div>
+              <div id="s2" class="seg">0</div>
+              <div id="s3" class="seg">0</div>
+              <div id="s4" class="seg">E</div>
+              <div id="s5" class="seg">M</div>
+              <div id="s6" class="seg">P</div>
+            </div>
+          </div>
+
+          <div style="flex:1">
+            <div style="font-size:12px;color:#94a3b8;margin-bottom:6px">Truth table (implemented)</div>
+            <pre style="background:#fbfdff;border-radius:8px;padding:10px;margin:0;font-size:13px;color:#0f172a">Inputs (top→mid→bot) → Status
+000 → Empty
+001 → Low
+011 → Half
+111 → Full
+Other combos treated as nearest interpretation (combinational logic)
+            </pre>
+          </div>
+        </div>
+
+        <hr style="margin:12px 0;border:none;border-top:1px solid #eef2ff" />
+
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:12px;color:#94a3b8">Memory (flip‑flop simulation)</div>
+            <div id="memory" style="font-weight:700;margin-top:6px">No previous state</div>
+            <div class="info" style="margin-top:6px">(Apply stores the current computed state in browser storage)</div>
+          </div>
+
+          <div style="text-align:right">
+            <div style="font-size:12px;color:#94a3b8">Last applied time</div>
+            <div id="mtime" style="font-weight:700;margin-top:6px">—</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // helpers
+    const get = id => document.getElementById(id);
+    const toggles = [get('t3'), get('t2'), get('t1')]; // top->bottom for display
+    const leds = [get('led3'), get('led2'), get('led1')];
+    const viewLEDs = [get('v3'), get('v2'), get('v1')];
+
+    function toggleClick(el){
+      el.addEventListener('click', ()=>{
+        const val = el.getAttribute('data-val') === '1' ? '0' : '1';
+        el.setAttribute('data-val', val);
+        el.classList.toggle('on', val==='1');
+      });
+    }
+    toggles.forEach(toggleClick);
+
+    // read binary from toggles (top->mid->bot)
+    function readSensors(){
+      return toggles.map(t=>t.getAttribute('data-val')).join('');
+    }
+
+    // Combinational logic: implement truth table rules and simple prioritization
+    function interpret(bits){
+      // bits is string like '010' top->mid->bot
+      // convert to common pattern with bottom as LSB for easier view
+      const b = bits; // top mid bot
+      // If exact patterns exist use them
+      if(b === '000') return {code:'000', label:'Empty', detail:'No waste detected.'};
+      if(b === '001') return {code:'001', label:'Low', detail:'Waste reached bottom level.'};
+      if(b === '011') return {code:'011', label:'Half', detail:'Waste reached mid level.'};
+      if(b === '111') return {code:'111', label:'Full', detail:'Top level reached — please empty!'};
+      // fallback rules: if top sensor on, treat as Full
+      if(b[0] === '1') return {code:'111', label:'Full', detail:'Top sensor triggered.'};
+      // if mid on, at least Half
+      if(b[1] === '1') return {code:'011', label:'Half', detail:'Mid sensor triggered.'};
+      // if only bottom on
+      if(b[2] === '1') return {code:'001', label:'Low', detail:'Bottom sensor only.'};
+      return {code:'000', label:'Empty', detail:'No sensors active.'};
+    }
+
+    function updateView(state){
+      get('bits').innerText = state.code;
+      get('status').innerText = state.label;
+      get('statusDetail').innerText = state.detail;
+
+      // set small level LEDs (visual)
+      const map = state.code.split('').map(x=>x==='1'); // top->mid->bot
+      viewLEDs.forEach((el,i)=>{
+        el.className = 'led' + (map[i] ? ' on red' : '');
+      });
+
+      // 7-seg style: show code and label letters across segments
+      get('s1').innerText = state.code[0];
+      get('s2').innerText = state.code[1];
+      get('s3').innerText = state.code[2];
+      const label = state.label.padEnd(3).slice(0,3).toUpperCase();
+      get('s4').innerText = label[0] || '-';
+      get('s5').innerText = label[1] || '-';
+      get('s6').innerText = label[2] || '-';
+    }
+
+    // memory functions (simulate D flip-flops storing last state)
+    function storeMemory(state){
+      const now = new Date().toISOString();
+      localStorage.setItem('st_bin_state', JSON.stringify({state, time:now}));
+      renderMemory();
+    }
+    function clearMemory(){
+      localStorage.removeItem('st_bin_state');
+      renderMemory();
+    }
+    function renderMemory(){
+      const raw = localStorage.getItem('st_bin_state');
+      if(!raw){
+        get('memory').innerText = 'No previous state';
+        get('mtime').innerText = '—';
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      get('memory').innerText = parsed.state.label + ' ('+parsed.state.code+')';
+      get('mtime').innerText = new Date(parsed.time).toLocaleString();
+    }
+
+    // apply button handler
+    get('apply').addEventListener('click', ()=>{
+      const bits = readSensors();
+      const state = interpret(bits);
+      updateView(state);
+      // flash the big LEDs visually
+      leds.forEach((led,i)=>{
+        led.className = 'led' + (state.code[i]==='1' ? ' on ' + (i===0? 'red': (i===1? 'yellow':'green')) : '');
+      });
+      storeMemory(state);
+    });
+
+    get('clear').addEventListener('click', ()=>{
+      clearMemory();
+      // clear UI
+      leds.forEach(l=>l.className='led');
+      viewLEDs.forEach(l=>l.className='led');
+      get('bits').innerText='000';
+      get('status').innerText='Empty';
+      get('statusDetail').innerText='No waste detected.';
+      ['s1','s2','s3','s4','s5','s6'].forEach(id=>get(id).innerText='-');
+    });
+
+    get('preset').addEventListener('click', ()=>{
+      // random sensible pattern
+      const options = ['000','001','011','111'];
+      const pick = options[Math.floor(Math.random()*options.length)];
+      // write toggles (top->mid->bot)
+      toggles.forEach((t,i)=>{
+        const v = pick[i];
+        t.setAttribute('data-val', v);
+        t.classList.toggle('on', v==='1');
+      });
+    });
+
+    // init
+    (function(){
+      renderMemory();
+      // initialize display with empty
+      updateView({code:'000', label:'Empty', detail:'No waste detected.'});
+      // restore toggles to 0
+      toggles.forEach(t=>{t.setAttribute('data-val','0');t.classList.remove('on');});
+    })();
+  </script>
+</body>
+</html>
